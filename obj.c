@@ -18,27 +18,28 @@ char untag_character(any obj) { return obj>>8; }
 char is_character(any obj) { return (obj & 0xff) == 0x26; }
 
 
-any tag_symbol(char *symbol) { return (int64_t)symbol + 0x3; }
-char *untag_symbol(any obj) { return (char*)(obj - 0x3); }
-char *make_symbol(char *value) {
-  static char *symbols[100];
+any tag_symbol(symbol_t symbol) { return (int64_t)symbol + 0x3; }
+symbol_t untag_symbol(any obj) { return (symbol_t)(obj - 0x3); }
+symbol_t make_symbol(char *value) {
+  static symbol_t symbols[100];
   static size_t nsymbols = 0;
 
   for (size_t i=0; i<nsymbols; i++) {
-    if (strcmp(symbols[i], value) == 0) {
-      return symbols[i]-1;
+    if (strcmp(symbols[i]->sym, value) == 0) {
+      return symbols[i];
     }
   }
-  printf("make symbol <%s>\n", value);
+
+  
 
   // need a new symbol
-  char *sym = (char*)malloc(strlen(value)+2);
-  sym[0] = '\'';
-  strcpy(sym+1, value);
-  symbols[nsymbols++] = (sym+1);
+  symbol_t sym = (symbol_t)malloc(sizeof(symbol_t) + strlen(value) + 1);
+  sym->header = '\'';
+  strcpy(sym->sym, value);
+  symbols[nsymbols++] = sym;
   return sym;
 }
-char is_symbol(any obj) { return ((obj & 0x7) == 3) && (untag_symbol(obj)[0] == '\''); }
+char is_symbol(any obj) { return ((obj & 0x7) == 3) && (untag_symbol(obj)->header == '\''); }
 
 any tag_string(char *symbol) { return (int64_t)symbol + 0x3; }
 char *untag_string(any obj) { return (char*)(obj - 0x3); }
@@ -51,10 +52,10 @@ char *make_string(char *value) {
 }
 char is_string(any obj) { return ((obj & 0x7) == 3) && (untag_string(obj)[0] == 's'); }
 
-any tag_pair(pair_t *pair) { return (int64_t)pair + 1; }
-pair_t *untag_pair(any obj) { return (pair_t*)(obj-1); }
-pair_t *make_pair(any car, any cdr) { 
-  pair_t *p = (pair_t*)malloc(sizeof(pair_t));
+any tag_pair(pair_t pair) { return (int64_t)pair + 1; }
+pair_t untag_pair(any obj) { return (pair_t)(obj-1); }
+pair_t make_pair(any car, any cdr) { 
+  pair_t p = (pair_t)malloc(sizeof(pair_t));
   p->car = car;
   p->cdr = cdr;
   return p;

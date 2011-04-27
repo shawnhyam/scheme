@@ -32,19 +32,19 @@ any add(any args) {
 any compile(any obj) {
   // FIXME these should be changed into environment references
   if (is_symbol(obj)) {
-    if (make_symbol("+") == untag_symbol(obj)) {
+    if (equal_symbols(make_symbol("+"), untag_symbol(obj))) {
       return tag_primitive_expr(&add);
-    } else if (make_symbol("cons") == untag_symbol(obj)) {
+    } else if (equal_symbols(make_symbol("cons"), untag_symbol(obj))) {
       return tag_primitive_expr(&cons);
-    } else if (make_symbol("car") == untag_symbol(obj)) {
+    } else if (equal_symbols(make_symbol("car"), untag_symbol(obj))) {
       return tag_primitive_expr(&car);
-    } else if (make_symbol("cdr") == untag_symbol(obj)) {
+    } else if (equal_symbols(make_symbol("cdr"), untag_symbol(obj))) {
       return tag_primitive_expr(&cdr);
     } else {
       return obj;
     }
   } else if (is_pair(obj)) {
-    pair_t *pair = untag_pair(obj);
+    pair_t pair = untag_pair(obj);
     return tag_pair(make_pair(compile(pair->car),
 			      compile(pair->cdr)));
   } else {

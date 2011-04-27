@@ -18,12 +18,12 @@ int main() {
     assert(untag_fixnum(obj) == r);
   }
 
-  write(eval(tag_fixnum(33)));
+  write(eval(tag_fixnum(33)), stdout);
   printf("\n");
 
-  write(tag_boolean(0));
+  write(tag_boolean(0), stdout);
   printf(" ");
-  write(tag_boolean(1));
+  write(tag_boolean(1), stdout);
   printf("\n");
 
   /*
@@ -33,13 +33,13 @@ int main() {
   assert(untag_primitive_expr(fn) == &quote);
   */
 
-  pair_t *pair = make_pair(tag_fixnum(33), tag_fixnum(44));
+  pair_t pair = make_pair(tag_fixnum(33), tag_fixnum(44));
   any cell = tag_pair(pair);
-  write(cell);
+  write(cell, stdout);
   printf("\n");
 
   any cell2 = tag_pair(make_pair(tag_fixnum(88), empty_list));
-  write(tag_pair(make_pair(tag_fixnum(22), cell2)));
+  write(tag_pair(make_pair(tag_fixnum(22), cell2)), stdout);
   printf("\n");
 
   assert(is_pair(cell));
@@ -56,7 +56,7 @@ int main() {
 
     while (1) {
         printf("> ");
-	write(eval(compile(read(stdin))));
+	write(eval(compile(read(stdin))), stdout);
         //write(eval(read(stdin), the_global_environment));
         printf("\n");
     }

@@ -30,7 +30,7 @@ any eval(any obj) {
   if (is_self_evaluating(obj)) {
     return obj;
   } else if (is_pair(obj)) {
-    if (is_symbol(car(obj)) && (untag_symbol(car(obj)) == make_symbol("quote"))) {
+    if (is_symbol(car(obj)) && (equal_symbols(untag_symbol(car(obj)), make_symbol("quote")))) {
       return cadr(obj);
     } else {
       // 

@@ -13,12 +13,12 @@
 // 64-bit implementation (lower 32 bits shown)
 // xxxx xxxx xxxx xxxx xxxx xxxx xxxx x000   fixnum
 // xxxx xxxx xxxx xxxx xxxx xxxx xxxx x001   immediate
-// pppp pppp pppp pppp pppp pppp pppp p010   unused
-// pppp pppp pppp pppp pppp pppp pppp p011   unused
+// pppp pppp pppp pppp pppp pppp pppp p010   string (change this!)
+// pppp pppp pppp pppp pppp pppp pppp p011   environment (change this!)
 // pppp pppp pppp pppp pppp pppp pppp p100   pointer to pair
 // pppp pppp pppp pppp pppp pppp pppp p101   pointer to bytevector struct
 // pppp pppp pppp pppp pppp pppp pppp p110   unused (pointer to closure)
-// pppp pppp pppp pppp pppp pppp pppp p111   pointer to primitive procedure
+// pppp pppp pppp pppp pppp pppp pppp p111   primitive procedure
 
 
 // immediates; lowest 2 bits must be 01; next 6 bits are the type
@@ -27,6 +27,7 @@
 // 0000 10--   empty list
 // 0000 11--   character
 // 0001 00--   miscellaneous (#!undefined, #!eof, etc.)
+
 
 
 // bytevector struct headers (64 bits)
@@ -60,12 +61,31 @@ typedef struct environment {
   any *vals;
 } *environment_t;
 
+typedef struct primitive {
+  unsigned char nargs;
+  unsigned char index;
+  void *proc;
+} *primitive_t;
+
+typedef any (*proc0_t)();
+typedef any (*proc1_t)(any);
 typedef any (*proc2_t)(any, any);
+
+// first level of test
+char is_fixnum(any obj) { return (obj&0x7) == 0; }
+char is_immediate(any obj)  { return (obj&0x7) == 1; }
+char is_pair(any obj)  { return (obj&0x7) == 4; }
+char is_bytevector(any obj)  { return (obj&0x7) == 5; }
+char is_proc(any obj)  { return (obj&0x7) == 7; }
+
+// second level
+char is_boolean(any obj);
+char is_string(any obj);
+char is_symbol(any obj);
 
 any tag_fixnum(fixnum_t);
 fixnum_t untag_fixnum(any);
 fixnum_t make_fixnum(int64_t);
-char is_fixnum(any);
 void write_fixnum(fixnum_t, FILE*);
 
 any tag_boolean(boolean_t);
@@ -90,7 +110,6 @@ void write_symbol(symbol_t, FILE*);
 any tag_pair(pair_t);
 pair_t untag_pair(any);
 pair_t make_pair(any, any);
-char is_pair(any);
 void write_pair(pair_t, FILE*);
 
 any tag_environment(environment_t);
@@ -99,11 +118,10 @@ environment_t make_environment(size_t sz, environment_t prev);
 char is_environment(any);
 void write_environment(environment_t, FILE*);
 
-any tag_proc(proc2_t);
-proc2_t untag_proc(any);
-char is_proc(any);
-void write_proc(proc2_t, FILE*);
-
+any tag_proc(primitive_t);
+primitive_t untag_proc(any);
+void write_proc(primitive_t, FILE*);
+primitive_t make_proc(unsigned char nargs, void *fn);
 
 
 void write(any obj, FILE *f) {
@@ -131,7 +149,6 @@ fixnum_t make_fixnum(int64_t n) {
   fixnum_t result = { n };
   return result; 
 }
-char is_fixnum(any obj) { return (obj&0x7) == 0; }
 void write_fixnum(fixnum_t n, FILE *f) {
   fprintf(f, "%lld", n.value);
 }
@@ -150,10 +167,10 @@ char is_boolean(any obj) { return (obj&0x7) == 3; }
 
 any tag_string(string_t s) {  
   assert(((int64_t)s.value & 0x7) == 0);
-  return (int64_t)s.value+1;
+  return (int64_t)s.value+2;
 }
 string_t untag_string(any obj) {
-  string_t result = { (char*)(obj-1) };
+  string_t result = { (char*)(obj-2) };
   return result;
 }
 string_t make_string(char* s) {
@@ -163,7 +180,7 @@ string_t make_string(char* s) {
   return r;
 }
 char is_string(any obj) {
-  return (obj & 0x7) == 1;
+  return (obj & 0x7) == 2;
 }
 
 void write_string(string_t s, FILE *f) {
@@ -190,10 +207,10 @@ void write_string(string_t s, FILE *f) {
 
 any tag_symbol(symbol_t s) {
   assert(((int64_t)s.value & 0x7) == 0);
-  return (int64_t)s.value+4;
+  return (int64_t)s.value+6;
 }
 symbol_t untag_symbol(any obj) {
-  symbol_t result = { (char*)(obj-4) };
+  symbol_t result = { (char*)(obj-6) };
   return result;
 }
 symbol_t make_symbol(char* s) {
@@ -203,7 +220,7 @@ symbol_t make_symbol(char* s) {
   return result;
 }
 char is_symbol(any obj) {
-  return (obj & 0x7) == 4;
+  return (obj & 0x7) == 6;
 }
 void write_symbol(symbol_t s, FILE *f) {
   fprintf(f, "%s", s.value);
@@ -212,10 +229,10 @@ void write_symbol(symbol_t s, FILE *f) {
 
 any tag_pair(pair_t p) {
   assert(((int64_t)p & 0x7) == 0);
-  return (int64_t)p + 2;
+  return (int64_t)p + 4;
 }
 pair_t untag_pair(any obj) {
-  return (pair_t)(obj-2);
+  return (pair_t)(obj-4);
 }
 pair_t make_pair(any car, any cdr) {
   pair_t pair = (pair_t)malloc(sizeof(struct pair));
@@ -223,17 +240,14 @@ pair_t make_pair(any car, any cdr) {
   pair->cdr = cdr;
   return pair;
 }
-char is_pair(any obj) {
-  return (obj & 0x7) == 2;
-}
 
 
 any tag_environment(environment_t e) {
   assert((int64_t)e & 0x7 == 0);
-  return (int64_t)e + 5;  
+  return (int64_t)e + 3;  
 }
 environment_t untag_environment(any obj) {
-  return (environment_t)(obj-5);
+  return (environment_t)(obj-3);
 }
 environment_t make_environment(size_t sz, environment_t prev) {
   environment_t env = (environment_t)malloc(sizeof(struct environment));
@@ -249,25 +263,27 @@ void bind(symbol_t sym, any obj, environment_t env, size_t idx) {
 }
 
 char is_environment(any obj) {
-  return (obj & 0x7) == 5;
+  return (obj & 0x7) == 3;
 }
 void write_environment(environment_t e, FILE* f) {
   assert(0);
 }
 
-any tag_proc(proc2_t p) {
-  return (int64_t)p + 6;    
+any tag_proc(primitive_t p) {
+  return (int64_t)p + 7;    
 }
-proc2_t untag_proc(any obj) {
-  return (proc2_t)(obj-6);
+primitive_t untag_proc(any obj) {
+  return (primitive_t)(obj-7);
 }
-char is_proc(any obj) {
-  return (obj & 0x7) == 6;
-}
-void write_proc(proc2_t p, FILE* f) {
+void write_proc(primitive_t p, FILE* f) {
   fprintf(f, "<#!primfn>");
 }
-
+primitive_t make_proc(unsigned char nargs, void *fn) {
+  primitive_t prim = (primitive_t)malloc(sizeof(struct primitive));
+  prim->nargs = nargs;
+  prim->proc = fn;
+  return prim;
+}
 
 // constants: #f, #t, '()
 
@@ -384,19 +400,15 @@ any read_pair(FILE *in) {
     int c;
     any car_obj;
     any cdr_obj;
-    
     eat_whitespace(in);
-    
     c = getc(in);
     if (c == ')') { /* read the empty list */
         return the_empty_list;
     }
     ungetc(c, in);
-
     car_obj = read(in);
 
     eat_whitespace(in);
-    
     c = getc(in);    
     if (c == '.') { /* read improper list */
         c = peek(in);
@@ -416,7 +428,7 @@ any read_pair(FILE *in) {
     }
     else { /* read list */
         ungetc(c, in);
-        cdr_obj = read_pair(in);        
+        cdr_obj = read_pair(in);  
         return cons(car_obj, cdr_obj);
     }
 }
@@ -554,14 +566,15 @@ any eval(any exp, environment_t env) {
   } else if (is_fixnum(exp)) {
     return exp;
   } else if (is_pair(exp)) {
-    any proc = eval(car(exp), env);
-
     // TODO check to see if macro
-
-    return untag_proc(proc)(eval(cadr(exp), env),
-                            eval(caddr(exp), env));
+    any proc = eval(car(exp), env);
+    primitive_t prim = untag_proc(proc);
+    switch(prim->nargs) {
+    case 1: return ((proc1_t)(prim->proc))(eval(cadr(exp), env));
+    case 2: return ((proc2_t)(prim->proc))(eval(cadr(exp), env),
+					   eval(caddr(exp), env));
+    }
   }
-
 }
 
 
@@ -575,10 +588,13 @@ int main() {
   printf("Welcome to Bootstrap Scheme. "
          "Use ctrl-c to exit.\n");
 
-  environment_t env = make_environment(4, NULL);
+  environment_t env = make_environment(14, NULL);
   bind(make_symbol("x"), tag_fixnum(make_fixnum(44)), env, 0);
-  bind(make_symbol("+"), tag_proc(&add), env, 1);
-  write(env->vals[0], stdout);
+  bind(make_symbol("+"), tag_proc(make_proc(2, &add)), env, 1);
+  bind(make_symbol("cons"), tag_proc(make_proc(2, &cons)), env, 2);
+  bind(make_symbol("car"), tag_proc(make_proc(1, &car)), env, 3);
+  bind(make_symbol("cdr"), tag_proc(make_proc(1, &cdr)), env, 4);
+  //  write(env->vals[0], stdout);
 
   while (1) {
     printf("> ");

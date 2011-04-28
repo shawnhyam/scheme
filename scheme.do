@@ -1,3 +1,3 @@
-DEPS="compile.o eval.o main.o obj.o read.o write.o"
+DEPS="scheme.o"
 redo-ifchange $DEPS
 gcc -o $3 $DEPS

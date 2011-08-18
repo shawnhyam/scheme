@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 typedef uint64_t obj_t;
 
@@ -15,10 +16,10 @@ typedef int64_t fixnum_t;
 static const char fixnum_tag = 0;
 
 char is_fixnum(obj_t obj) { return (obj&7) == fixnum_tag; }
-obj_t wrap_fixnum(fixnum_t n) { return (obj_t)n + fixnum_tag; }
+obj_t wrap_fixnum(fixnum_t n) { return ((obj_t)n) << 3; }
 fixnum_t unwrap_fixnum(obj_t obj) {
   assert(is_fixnum(obj));
-  return (fixnum_t)(obj-fixnum_tag);
+  return (fixnum_t)(obj>>3);
 }
 
 
@@ -61,9 +62,34 @@ obj_t cons(obj_t car, obj_t cdr) {
 
 obj_t car(obj_t pair) { return unwrap_pair(pair)->car; }
 obj_t cdr(obj_t pair) { return unwrap_pair(pair)->cdr; }
-
-obj_t caar(obj_t pair) { return car(car(pair)); }
-obj_t cdar(obj_t pair) { return cdr(car(pair)); }
+#define caar(obj)   car(car(obj))
+#define cadr(obj)   car(cdr(obj))
+#define cdar(obj)   cdr(car(obj))
+#define cddr(obj)   cdr(cdr(obj))
+#define caaar(obj)  car(car(car(obj)))
+#define caadr(obj)  car(car(cdr(obj)))
+#define cadar(obj)  car(cdr(car(obj)))
+#define caddr(obj)  car(cdr(cdr(obj)))
+#define cdaar(obj)  cdr(car(car(obj)))
+#define cdadr(obj)  cdr(car(cdr(obj)))
+#define cddar(obj)  cdr(cdr(car(obj)))
+#define cdddr(obj)  cdr(cdr(cdr(obj)))
+#define caaaar(obj) car(car(car(car(obj))))
+#define caaadr(obj) car(car(car(cdr(obj))))
+#define caadar(obj) car(car(cdr(car(obj))))
+#define caaddr(obj) car(car(cdr(cdr(obj))))
+#define cadaar(obj) car(cdr(car(car(obj))))
+#define cadadr(obj) car(cdr(car(cdr(obj))))
+#define caddar(obj) car(cdr(cdr(car(obj))))
+#define cadddr(obj) car(cdr(cdr(cdr(obj))))
+#define cdaaar(obj) cdr(car(car(car(obj))))
+#define cdaadr(obj) cdr(car(car(cdr(obj))))
+#define cdadar(obj) cdr(car(cdr(car(obj))))
+#define cdaddr(obj) cdr(car(cdr(cdr(obj))))
+#define cddaar(obj) cdr(cdr(car(car(obj))))
+#define cddadr(obj) cdr(cdr(car(cdr(obj))))
+#define cdddar(obj) cdr(cdr(cdr(car(obj))))
+#define cddddr(obj) cdr(cdr(cdr(cdr(obj))))
 
 // SYMBOL
 
@@ -108,7 +134,7 @@ struct symbol *make_symbol(char *value) {
   return s;
 }
 
-
+obj_t cons_symbol(char *value) { return wrap_symbol(make_symbol(value)); }
 
 
 
@@ -153,30 +179,157 @@ struct pair * lookup(obj_t var, obj_t e) {
 }
 
 
-int main() {
-  obj_t a = 0;
-  //obj_t x = wrap_symbol(make_symbol("hello"));
-  obj_t x = wrap_fixnum(88);
-  obj_t e = the_empty_list;
-
-  obj_t vars = cons(wrap_symbol(make_symbol("hello")), the_empty_list);
-  obj_t vals = cons(44, the_empty_list);
-  e = cons(cons(vars, vals), e);
-
-  struct pair *r;
-  struct call_frame *s;
-
- vm:
-  printf("acc: %llu\n", a);
-  if (is_symbol(x)) {
-    // look up in environment (refer)
-    a = lookup(x, e)->car;
-    x = 0;
-  } else {
-    // constant
-    a = x;
+char is_tagged_list(obj_t expr, struct symbol *tag) {
+  if (is_pair(expr)) {
+    if (is_symbol(car(expr))) {
+      return unwrap_symbol(car(expr)) == tag;
+    }
   }
-  printf("acc: %llu\n", a);
+  return 0;
+}
+
+enum opcode {
+  OP_HALT,
+  OP_REFER,
+  OP_CONSTANT,
+  OP_CLOSE,
+  OP_TEST,
+  OP_ASSIGN,
+  OP_CONTI,
+  OP_NUATE,
+  OP_FRAME,
+  OP_ARGUMENT,
+  OP_APPLY,
+  OP_RETURN
+};
+
+struct bytecode {
+  enum opcode opcode;
+  obj_t arguments;
+};
+
+obj_t list0() { return the_empty_list; }
+obj_t list1(obj_t e) { return cons(e, list0()); }
+obj_t list2(obj_t e0, obj_t e1) { return cons(e0, list1(e1)); }
+obj_t list3(obj_t e0, obj_t e1, obj_t e2) { return cons(e0, list2(e1, e2)); }
+obj_t list4(obj_t e0, obj_t e1, obj_t e2, obj_t e3) { return cons(e0, list3(e1, e2, e3)); }
+
+static struct symbol * if_symbol;
+static struct symbol * quote_symbol;
+
+char is_tail(obj_t next) {
+  return is_tagged_list(next, make_symbol("return"));
+}
+
+obj_t compile(obj_t x, obj_t next) {
+  if (is_symbol(x)) {
+    return list3(cons_symbol("refer"), x, next);
+  } else if (is_pair(x)) {
+    if (is_tagged_list(x, quote_symbol)) {
+      return list3(cons_symbol("constant"), cadr(x), next);
+    } else if (is_tagged_list(x, make_symbol("lambda"))) {
+      return list4(cons_symbol("close"), 
+		   cadr(x), 
+		   compile(caddr(x), list1(cons_symbol("return"))),
+		   next);
+    } else if (is_tagged_list(x, if_symbol)) {
+      obj_t test = cadr(x);
+      obj_t on_true = caddr(x);
+      obj_t on_false = cadddr(x);
+      printf("%llu %llu", on_true, on_false);
+      obj_t truec = compile(on_true, next);
+      obj_t falsec = compile(on_false, next);
+      return compile(test, list3(cons_symbol("test"), truec, falsec));
+    } else {
+      obj_t args = cdr(x);
+      obj_t c = compile(car(x), list1(cons_symbol("apply")));
+    loop:
+      if (is_the_empty_list(args)) {
+	if (is_tail(next))
+	  return c;
+	else
+	  return list3(cons_symbol("frame"), next, c);
+      } else {
+	c = compile(car(args), list2(cons_symbol("argument"), c));
+	args = cdr(args);
+	goto loop;
+      }
+    }
+  }
+  return list3(cons_symbol("constant"), x, next);
+}
+
+obj_t closure(obj_t body, obj_t e, obj_t vars) { 
+  return list3(body, e, vars);
+}
+
+obj_t call_frame(obj_t x, obj_t e, obj_t r, obj_t s) {
+  return list4(x, e, r, s);
+}
+
+obj_t extend(obj_t e, obj_t vars, obj_t vals) {
+  return cons(cons(vars, vals), e);
+}
+
+obj_t VM(obj_t a, obj_t x, obj_t e, obj_t r, obj_t s) {
+  //printf("%llu", x);
+  printf("%s\n", unwrap_symbol(car(x))->value);
+
+  if (is_tagged_list(x, make_symbol("halt"))) {
+    return a;
+  } else if (is_tagged_list(x, make_symbol("refer"))) {
+    return VM(lookup(cadr(x), e)->car, caddr(x), e, r, s);
+  } else if (is_tagged_list(x, make_symbol("constant"))) {
+    return VM(cadr(x), caddr(x), e, r, s);
+  } else if (is_tagged_list(x, make_symbol("close"))) {
+    obj_t vars = cadr(x);
+    obj_t body = caddr(x);
+    obj_t x_ = cadddr(x);
+    return VM(closure(body, e, vars), x_, e, r, s);
+  } else if (is_tagged_list(x, make_symbol("test"))) {
+    return VM(a, a ? cadr(x) : caddr(x), e, r, s);
+  } else if (is_tagged_list(x, make_symbol("frame"))) {
+    return VM(a, caddr(x), e, the_empty_list, call_frame(cadr(x), e, r, s));
+  } else if (is_tagged_list(x, make_symbol("argument"))) {
+    return VM(a, cadr(x), e, cons(a, r), s);
+  } else if (is_tagged_list(x, make_symbol("apply"))) {
+    obj_t body = car(a);
+    obj_t e = cadr(a);
+    obj_t vars = caddr(a);
+    return VM(a, body, extend(e, vars, r), the_empty_list, s);
+  } else if (is_tagged_list(x, make_symbol("return"))) {
+    return VM(a, car(s), cadr(s), caddr(s), cadddr(s));
+  } else {
+    assert(0);
+  }
+} 
+
+obj_t eval(obj_t x) {
+  return VM(the_empty_list, 
+	    compile(x, list1(cons_symbol("halt"))),
+	    the_empty_list,
+	    the_empty_list,
+	    the_empty_list);
+}
+
+int main() {
+  if_symbol = make_symbol("if");
+  quote_symbol = make_symbol("quote");
+
+#if 0
+  obj_t expr = list4(wrap_symbol(if_symbol),
+		     wrap_fixnum(11),
+		     wrap_fixnum(-22),
+		     wrap_fixnum(33));
+#else
+  obj_t expr = list2(list3(cons_symbol("lambda"),
+			   list1(cons_symbol("n")),
+			   cons_symbol("n")),
+		     wrap_fixnum(4));
+#endif
+
+  obj_t a = eval(expr);
+  printf("%d\n", unwrap_fixnum(a));
 
 
 }

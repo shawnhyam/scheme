@@ -5,184 +5,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <ctype.h>
-
-typedef uint64_t obj_t;
-
-// some scheme structs
-
-// FIXNUM
-
-typedef int64_t fixnum_t;
-
-static const char fixnum_tag = 0;
-
-char is_fixnum(obj_t obj) { return (obj&7) == fixnum_tag; }
-obj_t wrap_fixnum(fixnum_t n) { return ((obj_t)n) << 3; }
-fixnum_t unwrap_fixnum(obj_t obj) {
-  assert(is_fixnum(obj));
-  return (fixnum_t)(obj>>3);
-}
-
-// IMMEDIATES
-
-static const char immediate_tag = 3;
-
-char is_immediate(obj_t obj) { return (obj&7) == immediate_tag; }
-static obj_t false = immediate_tag;
-static obj_t true = (1<<3) + immediate_tag;
-
-char is_boolean(obj_t obj) { return (obj==false) || (obj==true); };
-
-// PRIMITIVE PROC
-
-typedef obj_t (*primitive_proc_t)(obj_t*);
-
-static const char primitive_proc_tag = 7;
-char is_primitive_proc(obj_t obj) { return (obj&7) == primitive_proc_tag; }
-obj_t wrap_primitive_proc(primitive_proc_t fn) {
-  assert(((obj_t)fn & 7) == 0);
-  return (obj_t)fn + primitive_proc_tag;
-}
-primitive_proc_t unwrap_primitive_proc(obj_t obj) { 
-  return (primitive_proc_t)(obj-primitive_proc_tag);
-}
-
-
-// PAIR
-
-struct pair {
-  obj_t car;
-  obj_t cdr;
-};
-
-static const char pair_tag = 1;
-
-struct pair * make_pair(obj_t car, obj_t cdr) {
-  struct pair *pair = malloc(sizeof(struct pair));
-  pair->car = car;
-  pair->cdr = cdr;
-  return pair;
-}
-
-char is_pair(obj_t obj) { return (obj&7) == pair_tag; }
-
-obj_t wrap_pair(struct pair *pair) {
-  return (obj_t)pair + pair_tag;
-}
-
-struct pair *unwrap_pair(obj_t obj) {
-  assert(is_pair(obj));
-  return (struct pair *)(obj-pair_tag);
-}
-
-//
-
-obj_t the_empty_list;
-
-char is_the_empty_list(obj_t obj) { return obj == the_empty_list; }
-
-obj_t cons(obj_t car, obj_t cdr) {
-  return wrap_pair(make_pair(car, cdr));
-}
-
-obj_t car(obj_t pair) { return unwrap_pair(pair)->car; }
-obj_t cdr(obj_t pair) { return unwrap_pair(pair)->cdr; }
-#define caar(obj)   car(car(obj))
-#define cadr(obj)   car(cdr(obj))
-#define cdar(obj)   cdr(car(obj))
-#define cddr(obj)   cdr(cdr(obj))
-#define caaar(obj)  car(car(car(obj)))
-#define caadr(obj)  car(car(cdr(obj)))
-#define cadar(obj)  car(cdr(car(obj)))
-#define caddr(obj)  car(cdr(cdr(obj)))
-#define cdaar(obj)  cdr(car(car(obj)))
-#define cdadr(obj)  cdr(car(cdr(obj)))
-#define cddar(obj)  cdr(cdr(car(obj)))
-#define cdddr(obj)  cdr(cdr(cdr(obj)))
-#define caaaar(obj) car(car(car(car(obj))))
-#define caaadr(obj) car(car(car(cdr(obj))))
-#define caadar(obj) car(car(cdr(car(obj))))
-#define caaddr(obj) car(car(cdr(cdr(obj))))
-#define cadaar(obj) car(cdr(car(car(obj))))
-#define cadadr(obj) car(cdr(car(cdr(obj))))
-#define caddar(obj) car(cdr(cdr(car(obj))))
-#define cadddr(obj) car(cdr(cdr(cdr(obj))))
-#define cdaaar(obj) cdr(car(car(car(obj))))
-#define cdaadr(obj) cdr(car(car(cdr(obj))))
-#define cdadar(obj) cdr(car(cdr(car(obj))))
-#define cdaddr(obj) cdr(car(cdr(cdr(obj))))
-#define cddaar(obj) cdr(cdr(car(car(obj))))
-#define cddadr(obj) cdr(cdr(car(cdr(obj))))
-#define cdddar(obj) cdr(cdr(cdr(car(obj))))
-#define cddddr(obj) cdr(cdr(cdr(cdr(obj))))
-
-// SYMBOL
-
-// impl functions (SYMBOL)
-
-struct symbol {
-  int reserved;
-  char value[];
-};
-
-static const char symbol_tag = 2;
-
-char is_symbol(obj_t obj) { return (obj&7) == symbol_tag; }
-
-obj_t wrap_symbol(struct symbol *s) {
-  return (obj_t)s + symbol_tag;
-}
-
-struct symbol *unwrap_symbol(obj_t obj) {
-  assert(is_symbol(obj));
-  return (struct symbol *)(obj-symbol_tag);
-}
-
-obj_t symbol_table;
-
-struct symbol *make_symbol(char *value) {
-  /* search for they symbol in the symbol table */
-  obj_t element = symbol_table;
-  while (!is_the_empty_list(element)) {
-    obj_t e = car(element);
-    if (strcmp(unwrap_symbol(e)->value, value) == 0) {
-      return unwrap_symbol(e);
-    }
-    element = cdr(element);
-  };
-    
-  /* create the symbol and add it to the symbol table */
-  struct symbol *s = malloc(sizeof(*s) + strlen(value+1)*sizeof(s->value[0]));
-  strcpy(s->value, value);
-
-  symbol_table = cons(wrap_symbol(s), symbol_table);
-  return s;
-}
-
-obj_t cons_symbol(char *value) { return wrap_symbol(make_symbol(value)); }
-
-
-
-// 
-
-// environment == pair
-
-struct call_frame {
-  obj_t expression;
-  struct pair *environment;
-  struct pair *rib;
-  struct call_frame *next_frame;
-};
-
-struct closure {
-  obj_t function_body;  // could be a compound_proc instead, I think
-  struct pair *environment;
-  struct pair *variables;
-};
-
-struct continuation {
-};
-
+#include "scheme.h"
+#include "pair.h"
 
 struct pair * lookup(obj_t var, obj_t e) {
  nxtrib: {
@@ -190,7 +14,7 @@ struct pair * lookup(obj_t var, obj_t e) {
   obj_t vals = cdar(e);
   
  nxtelt:
-  if (is_the_empty_list(vars)) {
+  if (vars == imm_empty_list) {
     e = cdr(e);
     goto nxtrib;
   } else if (unwrap_symbol(car(vars)) == unwrap_symbol(var)) {
@@ -217,7 +41,7 @@ void write_pair(obj_t pair) {
         printf(" ");
         write_pair(cdr_obj);
     }
-    else if (is_the_empty_list(cdr_obj)) { 
+    else if (cdr_obj == imm_empty_list) { 
         return;
     }
     else {
@@ -230,10 +54,10 @@ void write(obj_t obj) {
     char c;
     char *str;
     
-    if (is_the_empty_list(obj)) {
+    if (obj == imm_empty_list) {
       printf("()");
     } else if (is_boolean(obj)) {
-      printf("#%c", obj==false ? 'f' : 't');
+      printf("#%c", obj==imm_false ? 'f' : 't');
     } else if (is_fixnum(obj)) {
       printf("%lld", unwrap_fixnum(obj));
     } else {
@@ -395,7 +219,7 @@ obj_t read_pair(FILE *in) {
     
     c = getc(in);
     if (c == ')') { /* read the empty list */
-        return the_empty_list;
+        return imm_empty_list;
     }
     ungetc(c, in);
 
@@ -443,9 +267,9 @@ obj_t read(FILE *in) {
         c = getc(in);
         switch (c) {
             case 't':
-                return true;
+                return imm_true;
             case 'f':
-                return false;
+                return imm_false;
             case '\\':
                 return read_character(in);
             default:
@@ -495,7 +319,7 @@ obj_t read(FILE *in) {
         if (is_delimiter(c)) {
             buffer[i] = '\0';
             ungetc(c, in);
-            return cons_symbol(buffer);
+            return mk_symbol(buffer);
         }
         else {
             fprintf(stderr, "symbol not followed by delimiter. "
@@ -535,7 +359,7 @@ obj_t read(FILE *in) {
         return read_pair(in);
     }
     else if (c == '\'') { /* read quoted expression */
-      return cons(cons_symbol("quote"), cons(read(in), the_empty_list));
+      return cons(mk_symbol("quote"), cons(read(in), imm_empty_list));
     }
     else {
         fprintf(stderr, "bad input. Unexpected '%c'\n", c);
@@ -547,58 +371,33 @@ obj_t read(FILE *in) {
 
 //////
 
-char is_tagged_list(obj_t expr, struct symbol *tag) {
+char is_tagged_list(obj_t expr, obj_t tag) {
   if (is_pair(expr)) {
     if (is_symbol(car(expr))) {
-      return unwrap_symbol(car(expr)) == tag;
+      return car(expr) == tag;
     }
   }
   return 0;
 }
 
-enum opcode {
-  OP_HALT,
-  OP_REFER,
-  OP_CONSTANT,
-  OP_CLOSE,
-  OP_TEST,
-  OP_ASSIGN,
-  OP_CONTI,
-  OP_NUATE,
-  OP_FRAME,
-  OP_ARGUMENT,
-  OP_APPLY,
-  OP_RETURN
-};
 
-struct bytecode {
-  enum opcode opcode;
-  obj_t arguments;
-};
-
-obj_t list0() { return the_empty_list; }
-obj_t list1(obj_t e) { return cons(e, list0()); }
-obj_t list2(obj_t e0, obj_t e1) { return cons(e0, list1(e1)); }
-obj_t list3(obj_t e0, obj_t e1, obj_t e2) { return cons(e0, list2(e1, e2)); }
-obj_t list4(obj_t e0, obj_t e1, obj_t e2, obj_t e3) { return cons(e0, list3(e1, e2, e3)); }
-
-static struct symbol * if_symbol;
-static struct symbol * quote_symbol;
+obj_t if_symbol;
+obj_t quote_symbol;
 
 char is_tail(obj_t next) {
-  return is_tagged_list(next, make_symbol("return"));
+  return is_tagged_list(next, mk_symbol("return"));
 }
 
 obj_t compile(obj_t x, obj_t next) {
   if (is_symbol(x)) {
-    return list3(cons_symbol("refer"), x, next);
+    return list3(mk_symbol("refer"), x, next);
   } else if (is_pair(x)) {
     if (is_tagged_list(x, quote_symbol)) {
-      return list3(cons_symbol("constant"), cadr(x), next);
-    } else if (is_tagged_list(x, make_symbol("lambda"))) {
-      return list4(cons_symbol("close"), 
+      return list3(mk_symbol("constant"), cadr(x), next);
+    } else if (is_tagged_list(x, mk_symbol("lambda"))) {
+      return list4(mk_symbol("close"), 
 		   cadr(x), 
-		   compile(caddr(x), list1(cons_symbol("return"))),
+		   compile(caddr(x), list1(mk_symbol("return"))),
 		   next);
     } else if (is_tagged_list(x, if_symbol)) {
       obj_t test = cadr(x);
@@ -606,24 +405,24 @@ obj_t compile(obj_t x, obj_t next) {
       obj_t on_false = cadddr(x);
       obj_t truec = compile(on_true, next);
       obj_t falsec = compile(on_false, next);
-      return compile(test, list3(cons_symbol("test"), truec, falsec));
+      return compile(test, list3(mk_symbol("test"), truec, falsec));
     } else {
       obj_t args = cdr(x);
-      obj_t c = compile(car(x), list1(cons_symbol("apply")));
+      obj_t c = compile(car(x), list1(mk_symbol("apply")));
     loop:
-      if (is_the_empty_list(args)) {
+      if (args == imm_empty_list) {
 	if (is_tail(next))
 	  return c;
 	else
-	  return list3(cons_symbol("frame"), next, c);
+	  return list3(mk_symbol("frame"), next, c);
       } else {
-	c = compile(car(args), list2(cons_symbol("argument"), c));
+	c = compile(car(args), list2(mk_symbol("argument"), c));
 	args = cdr(args);
 	goto loop;
       }
     }
   }
-  return list3(cons_symbol("constant"), x, next);
+  return list3(mk_symbol("constant"), x, next);
 }
 
 obj_t closure(obj_t body, obj_t e, obj_t vars) { 
@@ -641,31 +440,31 @@ obj_t extend(obj_t e, obj_t vars, obj_t vals) {
 obj_t VM(obj_t a, obj_t x, obj_t e, obj_t r, obj_t s) {
   printf("%s\n", unwrap_symbol(car(x))->value);
 
-  if (is_tagged_list(x, make_symbol("halt"))) {
+  if (is_tagged_list(x, mk_symbol("halt"))) {
     return a;
-  } else if (is_tagged_list(x, make_symbol("refer"))) {
+  } else if (is_tagged_list(x, mk_symbol("refer"))) {
     obj_t val = lookup(cadr(x), e)->car;
     printf("%lld", val);
     return VM(val, caddr(x), e, r, s);
-  } else if (is_tagged_list(x, make_symbol("constant"))) {
+  } else if (is_tagged_list(x, mk_symbol("constant"))) {
     return VM(cadr(x), caddr(x), e, r, s);
-  } else if (is_tagged_list(x, make_symbol("close"))) {
+  } else if (is_tagged_list(x, mk_symbol("close"))) {
     obj_t vars = cadr(x);
     obj_t body = caddr(x);
     obj_t x_ = cadddr(x);
     return VM(closure(body, e, vars), x_, e, r, s);
-  } else if (is_tagged_list(x, make_symbol("test"))) {
-    return VM(a, (a!=false) ? cadr(x) : caddr(x), e, r, s);
-  } else if (is_tagged_list(x, make_symbol("frame"))) {
-    return VM(a, caddr(x), e, the_empty_list, call_frame(cadr(x), e, r, s));
-  } else if (is_tagged_list(x, make_symbol("argument"))) {
+  } else if (is_tagged_list(x, mk_symbol("test"))) {
+    return VM(a, (a!=imm_false) ? cadr(x) : caddr(x), e, r, s);
+  } else if (is_tagged_list(x, mk_symbol("frame"))) {
+    return VM(a, caddr(x), e, imm_empty_list, call_frame(cadr(x), e, r, s));
+  } else if (is_tagged_list(x, mk_symbol("argument"))) {
     return VM(a, cadr(x), e, cons(a, r), s);
-  } else if (is_tagged_list(x, make_symbol("apply"))) {
+  } else if (is_tagged_list(x, mk_symbol("apply"))) {
     obj_t body = car(a);
     obj_t e = cadr(a);
     obj_t vars = caddr(a);
-    return VM(a, body, extend(e, vars, r), the_empty_list, s);
-  } else if (is_tagged_list(x, make_symbol("return"))) {
+    return VM(a, body, extend(e, vars, r), imm_empty_list, s);
+  } else if (is_tagged_list(x, mk_symbol("return"))) {
     return VM(a, car(s), cadr(s), caddr(s), cadddr(s));
   } else {
     assert(0);
@@ -674,39 +473,22 @@ obj_t VM(obj_t a, obj_t x, obj_t e, obj_t r, obj_t s) {
 
 
 obj_t eval(obj_t x) {
-  //  obj_t fn = make_primitive_proc(is_null_proc);
+  obj_t globals = list2(list1(mk_symbol("x")), list1(wrap_fixnum(44)));
 
-  obj_t globals = list2(list1(cons_symbol("x")), list1(wrap_fixnum(44)));
-
-  return VM(the_empty_list, 
-	    compile(x, list1(cons_symbol("halt"))),
+  return VM(imm_empty_list, 
+	    compile(x, list1(mk_symbol("halt"))),
 	    list1(globals),
-	    the_empty_list,
-	    the_empty_list);
+	    imm_empty_list,
+	    imm_empty_list);
 }
 
 int main() {
-  if_symbol = make_symbol("if");
-  quote_symbol = make_symbol("quote");
-
-#if 0
-  obj_t expr = list4(wrap_symbol(if_symbol),
-		     wrap_fixnum(11),
-		     wrap_fixnum(-22),
-		     wrap_fixnum(33));
-#else
-  obj_t expr = list2(list3(cons_symbol("lambda"),
-			   list1(cons_symbol("n")),
-			   cons_symbol("n")),
-		     wrap_fixnum(4));
-#endif
+  if_symbol = mk_symbol("if");
+  quote_symbol = mk_symbol("quote");
 
   while (1) {
     printf("\n> ");
     write(eval(read(stdin)));
   }
-
-  //obj_t a = eval(expr);
-
 
 }

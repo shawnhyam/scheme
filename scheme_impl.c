@@ -2,13 +2,14 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include "write.h"
 
 static const char fixnum_tag = 0;
 static const char pair_tag = 1;
 static const char symbol_tag = 2;
 static const char immediate_tag = 3;
 static const char string_tag = 4;
-
+static const char thunk_tag = 6;
 static const char primitive_proc_tag = 7;
 
 // FIXNUM
@@ -27,6 +28,7 @@ fixnum_t unwrap_fixnum(obj_t obj) {
 static const obj_t imm_false = immediate_tag;
 static const obj_t imm_true = (1<<3) + immediate_tag;
 static const obj_t imm_empty_list = (2<<3) + immediate_tag;  // FIXME
+static const obj_t imm_undefined = (3<<3) + immediate_tag;
 
 char is_boolean(obj_t obj) {
   return (obj==imm_true) || (obj==imm_false);
@@ -53,6 +55,10 @@ obj_t wrap_pair(pair_t pair) {
 }
 
 pair_t unwrap_pair(obj_t obj) {
+  if (!is_pair(obj)) {
+    write(obj);
+    printf(" is not a pair\n");
+  }
   assert(is_pair(obj));
   return (pair_t)(obj-pair_tag);
 }
@@ -127,4 +133,17 @@ string_t alloc_string(char *value) {
 
 obj_t mk_string(char *value) { return wrap_string(alloc_string(value)); }
 
+
+// THUNK
+
+char is_thunk(obj_t obj) { return (obj&7) == thunk_tag; }
+
+obj_t wrap_thunk(thunk_t s) {
+  return (obj_t)s + thunk_tag;
+}
+
+thunk_t unwrap_thunk(obj_t obj) {
+  assert(is_thunk(obj));
+  return (thunk_t )(obj-thunk_tag);
+}
 

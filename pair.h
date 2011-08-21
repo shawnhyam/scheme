@@ -4,9 +4,9 @@
 #include "scheme.h"
 
 
-obj_t cons(obj_t car, obj_t cdr) { return mk_pair(car, cdr); }
-obj_t car(obj_t pair) { return unwrap_pair(pair)->car; }
-obj_t cdr(obj_t pair) { return unwrap_pair(pair)->cdr; }
+static obj_t cons(obj_t car, obj_t cdr) { return mk_pair(car, cdr); }
+static obj_t car(obj_t pair) { return unwrap_pair(pair)->car; }
+static obj_t cdr(obj_t pair) { return unwrap_pair(pair)->cdr; }
 
 #define caar(obj)   car(car(obj))
 #define cadr(obj)   car(cdr(obj))
@@ -38,10 +38,10 @@ obj_t cdr(obj_t pair) { return unwrap_pair(pair)->cdr; }
 #define cddddr(obj) cdr(cdr(cdr(cdr(obj))))
 
 
-obj_t list0() { return imm_empty_list; }
-obj_t list1(obj_t e) { return cons(e, list0()); }
-obj_t list2(obj_t e0, obj_t e1) { return cons(e0, list1(e1)); }
-obj_t list3(obj_t e0, obj_t e1, obj_t e2) { return cons(e0, list2(e1, e2)); }
-obj_t list4(obj_t e0, obj_t e1, obj_t e2, obj_t e3) { return cons(e0, list3(e1, e2, e3)); }
+static obj_t list0() { return imm_empty_list; }
+static obj_t list1(obj_t e) { return cons(e, list0()); }
+static obj_t list2(obj_t e0, obj_t e1) { return cons(e0, list1(e1)); }
+static obj_t list3(obj_t e0, obj_t e1, obj_t e2) { return cons(e0, list2(e1, e2)); }
+static obj_t list4(obj_t e0, obj_t e1, obj_t e2, obj_t e3) { return cons(e0, list3(e1, e2, e3)); }
 
 #endif

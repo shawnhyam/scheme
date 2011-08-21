@@ -19,12 +19,13 @@ fixnum_t unwrap_fixnum(obj_t obj);
 static const obj_t imm_true;
 static const obj_t imm_false;
 static const obj_t imm_empty_list;
+static const obj_t imm_undefined;
 
 char is_boolean(obj_t obj);
 
 // PRIMITIVE PROC
 
-typedef obj_t (*primitive_proc_t)(obj_t*);
+typedef obj_t (*primitive_proc_t)(obj_t);
 
 char is_primitive_proc(obj_t obj);
 obj_t wrap_primitive_proc(primitive_proc_t x);
@@ -77,6 +78,16 @@ obj_t wrap_string(string_t x);
 string_t unwrap_string(obj_t obj);
 string_t alloc_string(char *value);
 obj_t mk_string(char *value);
+
+
+// THUNK
+
+typedef obj_t (*thunk_t)(void);
+
+char is_thunk(obj_t obj);
+obj_t wrap_thunk(thunk_t x);
+thunk_t unwrap_thunk(obj_t obj);
+
 
 #endif
 
